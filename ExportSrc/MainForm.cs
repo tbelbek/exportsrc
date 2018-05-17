@@ -1,37 +1,28 @@
-﻿using System;
+﻿#region usings
+
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 using System.Xml;
 
+#endregion
+
 namespace ExportSrc
 {
     public partial class MainForm : Form
     {
+        private string _settingPath;
+
         private Settings _settings = Settings.GetDefault();
+
         public MainForm()
         {
-            InitializeComponent();
-            InitBinding();
+            this.InitializeComponent();
+            this.InitBinding();
 
-            Trace.Listeners.Add(new LabelTraceListener(labelProgress));
-        }
-
-        private void InitBinding()
-        {
-            this.settingsBindingSource.DataSource = _settings;
-            this.filterBindingSource.DataSource = _settings;
-            this.filterBindingSource.DataMember = "Filters";
-            this.replacementsBindingSource.DataSource = _settings;
-            this.replacementsBindingSource.DataMember = "Replacements";
-            this.excludedProjectsBindingSource.DataSource = _settings;
-            this.excludedProjectsBindingSource.DataMember = "ExcludedProjects";
-        }
-
-        private void exitToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            Application.Exit();
+            Trace.Listeners.Add(new LabelTraceListener(this.labelProgress));
         }
 
         private void aboutToolStripMenuItem_Click(object sender, EventArgs e)
@@ -39,46 +30,94 @@ namespace ExportSrc
             new AboutBox().ShowDialog(this);
         }
 
-        private void SourceDirectoryButton_Click(object sender, EventArgs e)
+        private void dataGridView3_DragDrop(object sender, DragEventArgs e)
         {
-            DialogResult result = folderBrowserDialog1.ShowDialog();
-            if (result == DialogResult.OK || result == DialogResult.Yes)
-            {
-                textBoxSource.Text = folderBrowserDialog1.SelectedPath;
-            }
+            var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+            foreach (var file in files)
+
+                // TODO handle sln file
+                try
+                {
+                    // csproj
+                    var doc = new XmlDocument();
+                    doc.Load(file);
+
+                    var xmlnsmgr = new XmlNamespaceManager(doc.NameTable);
+                    xmlnsmgr.AddNamespace("msbuild", "http://schemas.microsoft.com/developer/msbuild/2003");
+
+                    var node = doc.SelectSingleNode("//msbuild:ProjectGuid", xmlnsmgr);
+                    if (node == null)
+                        return;
+
+                    Guid projectGuid;
+                    if (Guid.TryParse(node.InnerText, out projectGuid))
+                    {
+                        var project = new Project();
+                        project.Id = projectGuid;
+                        project.Name = Path.GetFileNameWithoutExtension(file);
+                        this.excludedProjectsBindingSource.Add(project);
+                    }
+                }
+                catch (Exception ex)
+                {
+                }
+        }
+
+        private void dataGridView3_DragEnter(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy;
+            else e.Effect = DragDropEffects.None;
         }
 
         private void DestinationDirectoryButton_Click(object sender, EventArgs e)
         {
-            DialogResult result = folderBrowserDialog1.ShowDialog();
+            var result = this.folderBrowserDialog1.ShowDialog();
             if (result == DialogResult.OK || result == DialogResult.Yes)
-            {
-                textBoxDestination.Text = folderBrowserDialog1.SelectedPath;
-            }
+                this.textBoxDestination.Text = this.folderBrowserDialog1.SelectedPath;
         }
 
-        private void ProcessButton_Click(object sender, EventArgs e)
+        private void exitToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            string src = textBoxSource.Text;
-            string dst = textBoxDestination.Text;
-            if (string.IsNullOrWhiteSpace(src) || string.IsNullOrWhiteSpace(dst))
-            {
-                MessageBox.Show("Please select source and destination directories.");
-                return;
-            }
+            Application.Exit();
+        }
 
-            button3.Enabled = false;
-            ThreadPool.QueueUserWorkItem(o =>
+        private void InitBinding()
+        {
+            this.settingsBindingSource.DataSource = this._settings;
+            this.filterBindingSource.DataSource = this._settings;
+            this.filterBindingSource.DataMember = "Filters";
+            this.replacementsBindingSource.DataSource = this._settings;
+            this.replacementsBindingSource.DataMember = "Replacements";
+            this.excludedProjectsBindingSource.DataSource = this._settings;
+            this.excludedProjectsBindingSource.DataMember = "ExcludedProjects";
+        }
+
+        private void OnDragDrop(object sender, DragEventArgs e)
+        {
+            var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+            foreach (var file in files)
             {
-                Exporter exporter = new Exporter(src, _settings);
-                var result = exporter.Export(dst);
-                this.BeginInvoke((Action)(() =>
+                var txt = sender as TextBox;
+                if (txt != null)
                 {
-                    button3.Enabled = true;
-                    labelProgress.Text = string.Empty;
-                }));
-            });
+                    txt.Text = file;
+                    return;
+                }
 
+                if (string.IsNullOrEmpty(this.textBoxSource.Text))
+                {
+                    this.textBoxSource.Text = file;
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(this.textBoxDestination.Text))
+                {
+                    this.textBoxDestination.Text = file;
+                    return;
+                }
+
+                this.textBoxSource.Text = file;
+            }
         }
 
         private void OnDragEnter(object sender, DragEventArgs e)
@@ -86,58 +125,57 @@ namespace ExportSrc
             if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy;
         }
 
-        private void OnDragDrop(object sender, DragEventArgs e)
+        private void openToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-            foreach (string file in files)
-            {
-                TextBox txt = sender as TextBox;
-                if (txt != null)
+            var dialog = new OpenFileDialog();
+            dialog.Filter = "XML files (*.xml)|*.xml|All files (*.*)|*.*";
+            var dialogResult = dialog.ShowDialog(this);
+            if (dialogResult == DialogResult.OK || dialogResult == DialogResult.Yes)
+                try
                 {
-                    txt.Text = file;
-                    return;
+                    var settings = Settings.Deserialize(dialog.FileName);
+                    this._settings = settings;
+                    this.InitBinding();
                 }
-
-                if (string.IsNullOrEmpty(textBoxSource.Text))
+                catch (Exception ex)
                 {
-                    textBoxSource.Text = file;
-                    return;
+                    MessageBox.Show(ex.ToString());
                 }
-
-                if (string.IsNullOrEmpty(textBoxDestination.Text))
-                {
-                    textBoxDestination.Text = file;
-                    return;
-                }
-
-                textBoxSource.Text = file;
-            }
         }
 
-        private string _settingPath = null;
-
-        private void SaveAs()
+        private void ProcessButton_Click(object sender, EventArgs e)
         {
-            SaveFileDialog dialog = new SaveFileDialog();
-            dialog.AddExtension = true;
-            dialog.AutoUpgradeEnabled = true;
-            dialog.Filter = "XML files (*.xml)|*.xml|All files (*.*)|*.*";
-
-            DialogResult dialogResult = dialog.ShowDialog(this);
-            if (dialogResult == DialogResult.OK || dialogResult == DialogResult.Yes)
+            var src = this.textBoxSource.Text;
+            var dst = this.textBoxDestination.Text;
+            if (string.IsNullOrWhiteSpace(src) || string.IsNullOrWhiteSpace(dst))
             {
-                Save(dialog.FileName);
+                MessageBox.Show("Please select source and destination directories.");
+                return;
             }
+
+            this.button3.Enabled = false;
+            ThreadPool.QueueUserWorkItem(
+                o =>
+                    {
+                        var exporter = new Exporter(src, this._settings);
+                        var result = exporter.Export(dst);
+                        this.BeginInvoke(
+                            (Action)(() =>
+                                            {
+                                                this.button3.Enabled = true;
+                                                this.labelProgress.Text = string.Empty;
+                                            }));
+                    });
         }
 
         private void Save(string path)
         {
             if (path == null)
             {
-                if (_settingPath == null)
+                if (this._settingPath == null)
                     return;
 
-                path = _settingPath;
+                path = this._settingPath;
             }
 
             try
@@ -149,10 +187,10 @@ namespace ExportSrc
 
                 using (var writer = XmlWriter.Create(path, xmlWriterSettings))
                 {
-                    _settings.Serialize(writer);
+                    this._settings.Serialize(writer);
                 }
 
-                _settingPath = path;
+                this._settingPath = path;
             }
             catch (Exception ex)
             {
@@ -160,90 +198,33 @@ namespace ExportSrc
             }
         }
 
-
-        private void saveToolStripMenuItem_Click(object sender, EventArgs e)
+        private void SaveAs()
         {
-            if (_settingPath == null)
-            {
-                SaveAs();
-            }
-            else
-            {
-                Save(_settingPath);
-            }
-        }
-
-        private void openToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            OpenFileDialog dialog = new OpenFileDialog();
+            var dialog = new SaveFileDialog();
+            dialog.AddExtension = true;
+            dialog.AutoUpgradeEnabled = true;
             dialog.Filter = "XML files (*.xml)|*.xml|All files (*.*)|*.*";
-            DialogResult dialogResult = dialog.ShowDialog(this);
-            if (dialogResult == DialogResult.OK || dialogResult == DialogResult.Yes)
-            {
-                try
-                {
-                    Settings settings = Settings.Deserialize(dialog.FileName);
-                    _settings = settings;
-                    InitBinding();
 
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(ex.ToString());
-                }
-            }
+            var dialogResult = dialog.ShowDialog(this);
+            if (dialogResult == DialogResult.OK || dialogResult == DialogResult.Yes) this.Save(dialog.FileName);
         }
 
         private void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            SaveAs();
+            this.SaveAs();
         }
 
-        private void dataGridView3_DragEnter(object sender, DragEventArgs e)
+        private void saveToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (e.Data.GetDataPresent(DataFormats.FileDrop))
-            {
-                e.Effect = DragDropEffects.Copy;
-            }
-            else
-            {
-                e.Effect = DragDropEffects.None;
-            }
+            if (this._settingPath == null) this.SaveAs();
+            else this.Save(this._settingPath);
         }
 
-        private void dataGridView3_DragDrop(object sender, DragEventArgs e)
+        private void SourceDirectoryButton_Click(object sender, EventArgs e)
         {
-            string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-            foreach (string file in files)
-            {
-                // TODO handle sln file
-
-                try
-                {
-                    // csproj
-                    XmlDocument doc = new XmlDocument();
-                    doc.Load(file);
-
-                    XmlNamespaceManager xmlnsmgr = new XmlNamespaceManager(doc.NameTable);
-                    xmlnsmgr.AddNamespace("msbuild", "http://schemas.microsoft.com/developer/msbuild/2003");
-
-                    var node = doc.SelectSingleNode("//msbuild:ProjectGuid", xmlnsmgr);
-                    if (node == null)
-                        return;
-
-                    Guid projectGuid;
-                    if (Guid.TryParse(node.InnerText, out projectGuid))
-                    {
-                        Project project = new Project();
-                        project.Id = projectGuid;
-                        project.Name = Path.GetFileNameWithoutExtension(file);
-                        excludedProjectsBindingSource.Add(project);
-                    }
-                }
-                catch (Exception ex)
-                {
-                }
-            }
+            var result = this.folderBrowserDialog1.ShowDialog();
+            if (result == DialogResult.OK || result == DialogResult.Yes)
+                this.textBoxSource.Text = this.folderBrowserDialog1.SelectedPath;
         }
     }
 }

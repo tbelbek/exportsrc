@@ -1,6 +1,10 @@
-﻿using System;
+﻿#region usings
+
+using System;
 using System.Diagnostics;
 using System.Windows.Forms;
+
+#endregion
 
 namespace ExportSrc
 {
@@ -10,17 +14,17 @@ namespace ExportSrc
 
         public LabelTraceListener(Label label)
         {
-            _label = label;
+            this._label = label;
         }
 
         public override void Write(string message)
         {
-            _label.BeginInvoke((Action)(() => { _label.Text = message; }));
+            this._label.BeginInvoke((Action)(() => { this._label.Text = message; }));
         }
 
         public override void WriteLine(string message)
         {
-            _label.BeginInvoke((Action)(() => { _label.Text = message; }));
+            this._label.BeginInvoke((Action)(() => { this._label.Text = message; }));
         }
     }
 }
