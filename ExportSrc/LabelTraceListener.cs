@@ -14,17 +14,17 @@ namespace ExportSrc
 
         public LabelTraceListener(Label label)
         {
-            this._label = label;
+            _label = label;
         }
 
         public override void Write(string message)
         {
-            this._label.BeginInvoke((Action)(() => { this._label.Text = message; }));
+            _label.BeginInvoke((Action)(() => { _label.Text = message; }));
         }
 
         public override void WriteLine(string message)
         {
-            this._label.BeginInvoke((Action)(() => { this._label.Text = message; }));
+            _label.BeginInvoke((Action)(() => { _label.Text = message; }));
         }
     }
 }

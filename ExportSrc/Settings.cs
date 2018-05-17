@@ -14,9 +14,9 @@ namespace ExportSrc
     {
         public Settings()
         {
-            this.Filters = new List<Filter>();
-            this.ExcludedProjects = new List<Project>();
-            this.Replacements = new List<ReplacementItem>();
+            Filters = new List<Filter>();
+            ExcludedProjects = new List<Project>();
+            Replacements = new List<ReplacementItem>();
         }
 
         [XmlAttribute]
@@ -118,24 +118,24 @@ namespace ExportSrc
         {
             var sb = new StringBuilder();
 
-            sb.AppendLine("Remove Tfs Binding: " + this.RemoveTfsBinding);
-            sb.AppendLine("Compute hash: " + this.ComputeHash);
-            sb.AppendLine("Override Existing Files: " + this.OverrideExistingFile);
-            sb.AppendLine("Unprotect Files: " + this.UnprotectFile);
+            sb.AppendLine("Remove Tfs Binding: " + RemoveTfsBinding);
+            sb.AppendLine("Compute hash: " + ComputeHash);
+            sb.AppendLine("Override Existing Files: " + OverrideExistingFile);
+            sb.AppendLine("Unprotect Files: " + UnprotectFile);
             sb.AppendLine(
                 "Output Files Read Only: "
-                + (this.OutputReadOnly.HasValue ? this.OutputReadOnly.Value.ToString() : "Do not change"));
-            sb.AppendLine("Exclude Generated Files: " + this.ExcludeGeneratedFiles);
-            sb.AppendLine("Keep Symbolic Links: " + this.KeepSymbolicLinks);
-            sb.AppendLine("Replace Link Files: " + this.ReplaceLinkFiles);
+                + (OutputReadOnly.HasValue ? OutputReadOnly.Value.ToString() : "Do not change"));
+            sb.AppendLine("Exclude Generated Files: " + ExcludeGeneratedFiles);
+            sb.AppendLine("Keep Symbolic Links: " + KeepSymbolicLinks);
+            sb.AppendLine("Replace Link Files: " + ReplaceLinkFiles);
 
-            if (this.Filters != null)
+            if (Filters != null)
             {
-                foreach (var filter in this.Filters)
+                foreach (var filter in Filters)
                     if (filter.FilterType == FilterType.Exclude)
                         sb.AppendLine(filter.ToString());
 
-                foreach (var filter in this.Filters)
+                foreach (var filter in Filters)
                     if (filter.FilterType == FilterType.Include)
                         sb.AppendLine(filter.ToString());
             }

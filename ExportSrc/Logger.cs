@@ -13,8 +13,8 @@ namespace ExportSrc
 
         public Logger()
         {
-            this.Minimum = long.MinValue;
-            this.Maximum = long.MaxValue;
+            Minimum = long.MinValue;
+            Maximum = long.MaxValue;
         }
 
         public static Logger Current
@@ -33,7 +33,7 @@ namespace ExportSrc
 
         public void Log(Enum category, object value)
         {
-            if (!this.MustLog(category))
+            if (!MustLog(category))
                 return;
 
             Trace.WriteLine(value, category.ToString());
@@ -48,7 +48,7 @@ namespace ExportSrc
         {
             var n = Convert.ToInt64(level);
 
-            return n >= this.Minimum && n <= this.Maximum;
+            return n >= Minimum && n <= Maximum;
         }
     }
 }

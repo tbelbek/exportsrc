@@ -28,13 +28,13 @@ namespace ExportSrc
             bool applyToDirectory,
             bool applyToFile)
         {
-            this.Text = text;
-            this.ApplyToPath = applyToPath;
-            this.ApplyToFileName = applyToFileName;
-            this.ApplyToDirectory = applyToDirectory;
-            this.ApplyToFile = applyToFile;
-            this.FilterType = filterType;
-            this.Enabled = true;
+            Text = text;
+            ApplyToPath = applyToPath;
+            ApplyToFileName = applyToFileName;
+            ApplyToDirectory = applyToDirectory;
+            ApplyToFile = applyToFile;
+            FilterType = filterType;
+            Enabled = true;
         }
 
         public Filter(string text, FilterType filterType, bool matchDirectory, bool matchFile)
@@ -72,8 +72,8 @@ namespace ExportSrc
         [DefaultValue(true)]
         public bool Enabled
         {
-            get => !string.IsNullOrEmpty(this.Text) && this._enabled;
-            set => this._enabled = value;
+            get => !string.IsNullOrEmpty(Text) && _enabled;
+            set => _enabled = value;
         }
 
         [XmlAttribute]
@@ -87,14 +87,14 @@ namespace ExportSrc
         [XmlText]
         public string Text
         {
-            get => this._text;
+            get => _text;
             set
             {
-                if (this._text == value)
+                if (_text == value)
                     return;
 
-                this._text = value;
-                this._regex = null;
+                _text = value;
+                _regex = null;
             }
         }
 
@@ -119,12 +119,12 @@ namespace ExportSrc
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
-            return Equals(other.FilterType, this.FilterType) && other.ApplyToFileName.Equals(this.ApplyToFileName)
-                                                             && other.ApplyToPath.Equals(this.ApplyToPath)
-                                                             && other.ApplyToFile.Equals(this.ApplyToFile)
-                                                             && other.ApplyToDirectory.Equals(this.ApplyToDirectory)
-                                                             && other.CaseSensitive.Equals(this.CaseSensitive)
-                                                             && Equals(other._text, this._text);
+            return Equals(other.FilterType, FilterType) && other.ApplyToFileName.Equals(ApplyToFileName)
+                                                             && other.ApplyToPath.Equals(ApplyToPath)
+                                                             && other.ApplyToFile.Equals(ApplyToFile)
+                                                             && other.ApplyToDirectory.Equals(ApplyToDirectory)
+                                                             && other.CaseSensitive.Equals(CaseSensitive)
+                                                             && Equals(other._text, _text);
         }
 
         /// <summary>
@@ -143,7 +143,7 @@ namespace ExportSrc
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
             if (obj.GetType() != typeof(Filter)) return false;
-            return this.Equals((Filter)obj);
+            return Equals((Filter)obj);
         }
 
         /// <summary>
@@ -157,13 +157,13 @@ namespace ExportSrc
         {
             unchecked
             {
-                var result = this.FilterType.GetHashCode();
-                result = (result * 397) ^ this.ApplyToFileName.GetHashCode();
-                result = (result * 397) ^ this.ApplyToPath.GetHashCode();
-                result = (result * 397) ^ this.ApplyToFile.GetHashCode();
-                result = (result * 397) ^ this.ApplyToDirectory.GetHashCode();
-                result = (result * 397) ^ this.CaseSensitive.GetHashCode();
-                result = (result * 397) ^ (this._text != null ? this._text.GetHashCode() : 0);
+                var result = FilterType.GetHashCode();
+                result = (result * 397) ^ ApplyToFileName.GetHashCode();
+                result = (result * 397) ^ ApplyToPath.GetHashCode();
+                result = (result * 397) ^ ApplyToFile.GetHashCode();
+                result = (result * 397) ^ ApplyToDirectory.GetHashCode();
+                result = (result * 397) ^ CaseSensitive.GetHashCode();
+                result = (result * 397) ^ (_text != null ? _text.GetHashCode() : 0);
                 return result;
             }
         }
@@ -176,16 +176,16 @@ namespace ExportSrc
             if (!isFile && !isDirectory)
                 return false;
 
-            if (this.ApplyToFile && !isFile && !this.ApplyToDirectory)
+            if (ApplyToFile && !isFile && !ApplyToDirectory)
                 return false;
 
-            if (this.ApplyToDirectory && !isDirectory && !this.ApplyToFile)
+            if (ApplyToDirectory && !isDirectory && !ApplyToFile)
                 return false;
 
-            if (this.ApplyToFileName && this.Match(name))
+            if (ApplyToFileName && Match(name))
                 return true;
 
-            if (this.ApplyToPath && this.Match(relativePath))
+            if (ApplyToPath && Match(relativePath))
                 return true;
 
             return false;
@@ -195,27 +195,27 @@ namespace ExportSrc
         {
             return string.Format(
                 "FilterType: {1}, Text: {0}, CaseSensitive: {2}",
-                this._text,
-                this.FilterType,
-                this.CaseSensitive);
+                _text,
+                FilterType,
+                CaseSensitive);
         }
 
         private void BuildRegex()
         {
-            if (this._regex == null)
+            if (_regex == null)
             {
                 var options = RegexOptions.Singleline | RegexOptions.Compiled;
-                if (!this.CaseSensitive) options |= RegexOptions.IgnoreCase;
+                if (!CaseSensitive) options |= RegexOptions.IgnoreCase;
 
-                switch (this.ExpressionType)
+                switch (ExpressionType)
                 {
                     case FilterExpressionType.Regex:
-                        this._regex = new Regex(this.Text, options);
+                        _regex = new Regex(Text, options);
                         break;
                     case FilterExpressionType.Globbing:
                     default:
-                        var escape = Regex.Escape(this.Text);
-                        this._regex = new Regex(
+                        var escape = Regex.Escape(Text);
+                        _regex = new Regex(
                             "^" + escape.Replace(@"\*", ".*").Replace(@"\|", "|").Replace(@"\?", ".") + "$",
                             options);
                         break;
@@ -225,8 +225,8 @@ namespace ExportSrc
 
         private bool Match(string name)
         {
-            this.BuildRegex();
-            return this._regex.IsMatch(name);
+            BuildRegex();
+            return _regex.IsMatch(name);
         }
     }
 }

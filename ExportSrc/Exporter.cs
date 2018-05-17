@@ -31,22 +31,22 @@ namespace ExportSrc
         public Exporter(string srcPath, Settings settings)
         {
             if (srcPath == null)
-                throw new ArgumentNullException("srcPath");
+                throw new ArgumentNullException(nameof(srcPath));
 
-            this.Settings = settings ?? throw new ArgumentNullException("settings");
+            Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
-            this._srcPath = Directory.Exists(srcPath) ? srcPath : Path.GetDirectoryName(srcPath);
+            _srcPath = Directory.Exists(srcPath) ? srcPath : Path.GetDirectoryName(srcPath);
         }
 
         public Settings Settings { get; set; }
 
-        private bool CanReplaceText => this.Settings.Replacements != null && this.Settings.Replacements.Count > 0;
+        private bool CanReplaceText => Settings.Replacements != null && Settings.Replacements.Count > 0;
 
         public ExportResult Export(string path)
         {
             var result = new ExportResult();
 
-            Logger.Current.Log(LogCategory.Configuration, this.Settings);
+            Logger.Current.Log(LogCategory.Configuration, Settings);
 
             if (!Directory.Exists(path))
             {
@@ -54,17 +54,17 @@ namespace ExportSrc
                 Directory.CreateDirectory(path);
             }
 
-            foreach (var srcPath in this.GetFiles(this._srcPath))
+            foreach (var srcPath in GetFiles(_srcPath))
             {
-                var relativePath = this.GetRelativePath(srcPath);
-                relativePath = this.ApplyReplacements(relativePath);
+                var relativePath = GetRelativePath(srcPath);
+                relativePath = ApplyReplacements(relativePath);
                 var dstPath = Path.Combine(path, relativePath);
                 if (Directory.Exists(srcPath))
                 {
                     result.Directories++;
 
                     if (ReparsePoint.IsSymbolicLink(srcPath))
-                        if (this.Settings.KeepSymbolicLinks)
+                        if (Settings.KeepSymbolicLinks)
                         {
                             var link = ReparsePoint.GetTargetDir(new DirectoryInfo(srcPath));
                             ReparsePoint.CreateSymbolicLink(dstPath, link, SymbolicLinkType.Directory);
@@ -78,14 +78,14 @@ namespace ExportSrc
                     result.Files++;
 
                     if (ReparsePoint.IsSymbolicLink(srcPath))
-                        if (this.Settings.KeepSymbolicLinks)
+                        if (Settings.KeepSymbolicLinks)
                         {
                             var link = ReparsePoint.GetTargetDir(new FileInfo(srcPath));
                             ReparsePoint.CreateSymbolicLink(dstPath, link, SymbolicLinkType.File);
                             continue;
                         }
 
-                    this.CopyFile(srcPath, dstPath);
+                    CopyFile(srcPath, dstPath);
                 }
             }
 
@@ -102,10 +102,10 @@ namespace ExportSrc
             if (text == null)
                 return null;
 
-            if (!this.CanReplaceText)
+            if (!CanReplaceText)
                 return text;
 
-            foreach (var replacementItem in this.Settings.Replacements)
+            foreach (var replacementItem in Settings.Replacements)
                 text = text.Replace(replacementItem.SearchText, replacementItem.ReplacementText);
 
             return text;
@@ -116,7 +116,7 @@ namespace ExportSrc
             IOUtilities.PathCreateDirectory(dst);
             File.Copy(src, dst, true);
 
-            if (!this.Settings.ComputeHash) return;
+            if (!Settings.ComputeHash) return;
 
             byte[] hashSrc;
             byte[] hashDst;
@@ -136,25 +136,25 @@ namespace ExportSrc
 
             if (!HashEqual(hashSrc, hashDst))
             {
-                if (this._errorCount > 5)
+                if (_errorCount > 5)
                     throw new Exception($"Error while copying file \"{src}\" to \"{dst}\".");
 
-                this._errorCount += 1;
-                Logger.Current.Log(LogCategory.Verify, "Different hash (" + this._errorCount + ")");
-                this.CopyBinaryFile(src, dst);
+                _errorCount += 1;
+                Logger.Current.Log(LogCategory.Verify, "Different hash (" + _errorCount + ")");
+                CopyBinaryFile(src, dst);
             }
             else
             {
-                this._errorCount = 0;
+                _errorCount = 0;
                 Logger.Current.Log(LogCategory.Verify, dst);
             }
         }
 
         private void CopyCsproj(string src, string dst)
         {
-            if (!this.Settings.RemoveTfsBinding && !this.Settings.ConvertRelativeHintPathsToAbsolute)
+            if (!Settings.RemoveTfsBinding && !Settings.ConvertRelativeHintPathsToAbsolute)
             {
-                this.CopyBinaryFile(src, dst);
+                CopyBinaryFile(src, dst);
                 return;
             }
 
@@ -168,7 +168,7 @@ namespace ExportSrc
                 xmlnsmgr.AddNamespace("msbuild", "http://schemas.microsoft.com/developer/msbuild/2003");
                 XmlNode root = doc;
 
-                if (this.Settings.RemoveTfsBinding)
+                if (Settings.RemoveTfsBinding)
                 {
                     RemoveNode(xmlnsmgr, root, "//msbuild:SccProjectName");
                     RemoveNode(xmlnsmgr, root, "//msbuild:SccLocalPath");
@@ -176,15 +176,15 @@ namespace ExportSrc
                     RemoveNode(xmlnsmgr, root, "//msbuild:SccProvider");
                 }
 
-                if (this.Settings.ConvertRelativeHintPathsToAbsolute)
+                if (Settings.ConvertRelativeHintPathsToAbsolute)
                 {
                     var nodes = root.SelectNodes("//msbuild:HintPath/text()", xmlnsmgr);
                     if (nodes != null)
                         foreach (XmlNode node in nodes)
                             try
                             {
-                                var path = Path.Combine(this._srcPath, node.Value);
-                                if (IOUtilities.PathIsChildOrEqual(this._srcPath, path)) continue;
+                                var path = Path.Combine(_srcPath, node.Value);
+                                if (IOUtilities.PathIsChildOrEqual(_srcPath, path)) continue;
 
                                 path = Path.GetFullPath(path);
 
@@ -232,11 +232,11 @@ namespace ExportSrc
                             }
                 }
 
-                if (this.Settings.ReplaceLinkFiles)
+                if (Settings.ReplaceLinkFiles)
                 {
                     var srcPath = Path.GetDirectoryName(src);
                     var dstPath = Path.GetDirectoryName(dst);
-                    this.ReplaceLinkFiles(srcPath, dstPath, xmlnsmgr, root);
+                    ReplaceLinkFiles(srcPath, dstPath, xmlnsmgr, root);
                 }
 
                 doc.Save(dst);
@@ -244,7 +244,7 @@ namespace ExportSrc
             catch (XmlException ex)
             {
                 Logger.Current.Log(LogCategory.Copy, "Invalid csproj: " + src);
-                this.CopyBinaryFile(src, dst);
+                CopyBinaryFile(src, dst);
             }
         }
 
@@ -254,12 +254,12 @@ namespace ExportSrc
 
             IOUtilities.PathCreateDirectory(dst);
 
-            if (this.Settings.OverrideExistingFile) PathDelete(dst, this.Settings.UnprotectFile);
+            if (Settings.OverrideExistingFile) PathDelete(dst, Settings.UnprotectFile);
 
-            if (!this.CanReplaceText && !this.Settings.RemoveTfsBinding
-                                     && !this.Settings.ConvertRelativeHintPathsToAbsolute)
+            if (!CanReplaceText && !Settings.RemoveTfsBinding
+                                     && !Settings.ConvertRelativeHintPathsToAbsolute)
             {
-                this.CopyBinaryFile(src, dst);
+                CopyBinaryFile(src, dst);
             }
             else
             {
@@ -269,11 +269,11 @@ namespace ExportSrc
                 {
                     case ".sln":
                         tempPath = Path.GetTempFileName();
-                        this.CopySln(src, tempPath);
+                        CopySln(src, tempPath);
                         break;
                     case ".vdproj":
                         tempPath = Path.GetTempFileName();
-                        this.CopyVdproj(src, tempPath);
+                        CopyVdproj(src, tempPath);
                         break;
                     case ".csproj":
                     case ".vbproj":
@@ -282,23 +282,23 @@ namespace ExportSrc
                     case ".cfxproj":
                     case ".wixproj":
                         tempPath = Path.GetTempFileName();
-                        this.CopyCsproj(src, tempPath);
+                        CopyCsproj(src, tempPath);
                         break;
                     case ".vcproj":
                         tempPath = Path.GetTempFileName();
-                        this.CopyVcproj(src, tempPath);
+                        CopyVcproj(src, tempPath);
                         break;
                     default:
 
-                        if (this.CanReplaceText)
+                        if (CanReplaceText)
                         {
                             var perceivedType = Perceived.GetPerceivedType(src);
-                            if (perceivedType.PerceivedType == PerceivedType.Text) this.CopyTextFile(src, dst);
-                            else this.CopyBinaryFile(src, dst);
+                            if (perceivedType.PerceivedType == PerceivedType.Text) CopyTextFile(src, dst);
+                            else CopyBinaryFile(src, dst);
                         }
                         else
                         {
-                            this.CopyBinaryFile(src, dst);
+                            CopyBinaryFile(src, dst);
                         }
 
                         break;
@@ -306,20 +306,20 @@ namespace ExportSrc
 
                 if (tempPath != null)
                 {
-                    this.CopyTextFile(tempPath, dst);
+                    CopyTextFile(tempPath, dst);
                     File.Delete(tempPath);
                 }
             }
 
-            if (this.Settings.OutputReadOnly.HasValue) SetReadOnly(dst, this.Settings.OutputReadOnly.Value);
+            if (Settings.OutputReadOnly.HasValue) SetReadOnly(dst, Settings.OutputReadOnly.Value);
         }
 
         private void CopySln(string src, string dst)
         {
             var excludedProjects = new List<string>();
-            if (this.Settings.ExcludedProjects != null)
+            if (Settings.ExcludedProjects != null)
                 excludedProjects.AddRange(
-                    this.Settings.ExcludedProjects.Where(_ => _ != null).Select(_ => _.Id.ToString("B")));
+                    Settings.ExcludedProjects.Where(_ => _ != null).Select(_ => _.Id.ToString("B")));
 
             using (var inputStream = new StreamReader(File.OpenRead(src)))
             {
@@ -329,7 +329,7 @@ namespace ExportSrc
                     while ((line = inputStream.ReadLine()) != null)
                     {
                         var writeLine = true;
-                        if (this.Settings.RemoveTfsBinding)
+                        if (Settings.RemoveTfsBinding)
                             if (line.Trim().StartsWith("GlobalSection(SourceCodeControl)")
                                 || line.Trim().StartsWith("GlobalSection(TeamFoundationVersionControl)"))
                             {
@@ -356,15 +356,15 @@ namespace ExportSrc
             IOUtilities.PathCreateDirectory(dst);
 
             var text = File.ReadAllText(src);
-            text = this.ApplyReplacements(text);
+            text = ApplyReplacements(text);
             File.WriteAllText(dst, text);
         }
 
         private void CopyVcproj(string src, string dst)
         {
-            if (!this.Settings.RemoveTfsBinding)
+            if (!Settings.RemoveTfsBinding)
             {
-                this.CopyBinaryFile(src, dst);
+                CopyBinaryFile(src, dst);
                 return;
             }
 
@@ -375,25 +375,28 @@ namespace ExportSrc
 
                 var root = doc.DocumentElement;
 
-                root.RemoveAttribute("SccProjectName");
-                root.RemoveAttribute("SccLocalPath");
-                root.RemoveAttribute("SccAuxPath");
-                root.RemoveAttribute("SccProvider");
+                if (root != null)
+                {
+                    root.RemoveAttribute("SccProjectName");
+                    root.RemoveAttribute("SccLocalPath");
+                    root.RemoveAttribute("SccAuxPath");
+                    root.RemoveAttribute("SccProvider");
+                }
 
                 doc.Save(dst);
             }
             catch (XmlException ex)
             {
                 Logger.Current.Log(LogCategory.Copy, "Invalid vcproj: " + src);
-                this.CopyBinaryFile(src, dst);
+                CopyBinaryFile(src, dst);
             }
         }
 
         private void CopyVdproj(string src, string dst)
         {
-            if (!this.Settings.RemoveTfsBinding)
+            if (!Settings.RemoveTfsBinding)
             {
-                this.CopyBinaryFile(src, dst);
+                CopyBinaryFile(src, dst);
                 return;
             }
 
@@ -419,7 +422,7 @@ namespace ExportSrc
             if (!Directory.Exists(path)) yield break;
 
             foreach (var file in Directory.GetFiles(path))
-                if (this.MustExclude(file))
+                if (MustExclude(file))
                 {
                     Logger.Current.Log(LogCategory.Exclude, file);
                 }
@@ -430,7 +433,7 @@ namespace ExportSrc
                 }
 
             foreach (var directory in Directory.GetDirectories(path))
-                if (this.MustExclude(directory))
+                if (MustExclude(directory))
                 {
                     Logger.Current.Log(LogCategory.Exclude, directory);
                 }
@@ -438,16 +441,16 @@ namespace ExportSrc
                 {
                     Logger.Current.Log(LogCategory.Include, directory);
                     yield return directory;
-                    if (this.Settings.KeepSymbolicLinks && ReparsePoint.IsSymbolicLink(directory))
+                    if (Settings.KeepSymbolicLinks && ReparsePoint.IsSymbolicLink(directory))
                         continue;
 
-                    foreach (var item in this.GetFiles(directory)) yield return item;
+                    foreach (var item in GetFiles(directory)) yield return item;
                 }
         }
 
         private string GetRelativePath(string path)
         {
-            return path.StartsWith(this._srcPath) ? path.Substring(this._srcPath.Length + 1) : path;
+            return path.StartsWith(_srcPath) ? path.Substring(_srcPath.Length + 1) : path;
         }
 
         private static bool HashEqual(byte[] a, byte[] b)
@@ -469,7 +472,7 @@ namespace ExportSrc
             if (!File.Exists(path))
                 return false;
 
-            var relativePath = this.GetRelativePath(path);
+            var relativePath = GetRelativePath(path);
             var name = Path.GetFileName(path);
 
             if (DesignerFilter.Match(path, relativePath, name))
@@ -508,29 +511,29 @@ namespace ExportSrc
 
         private bool MustExclude(string path)
         {
-            var relativePath = this.GetRelativePath(path);
+            var relativePath = GetRelativePath(path);
             var name = Directory.Exists(path) ? new DirectoryInfo(path).Name : Path.GetFileName(path);
 
-            if (this.Settings.Filters == null)
+            if (Settings.Filters == null)
                 return false;
 
-            if (this.Settings.Filters.Where(_ => _.Enabled).Where(filter => filter.FilterType != FilterType.Exclude).Any(filter => filter.Match(path, relativePath, name)))
+            if (Settings.Filters.Where(_ => _.Enabled).Where(filter => filter.FilterType != FilterType.Exclude).Any(filter => filter.Match(path, relativePath, name)))
             {
                 return false;
             }
 
-            if (this.Settings.Filters.Where(_ => _.Enabled).Where(filter => filter.FilterType != FilterType.Include).Any(filter => filter.Match(path, relativePath, name)))
+            if (Settings.Filters.Where(_ => _.Enabled).Where(filter => filter.FilterType != FilterType.Include).Any(filter => filter.Match(path, relativePath, name)))
             {
                 return true;
             }
 
-            return this.Settings.ExcludeGeneratedFiles && this.IsGeneratedFile(path);
+            return Settings.ExcludeGeneratedFiles && IsGeneratedFile(path);
         }
 
         private static void PathDelete(string filePath, bool unprotect)
         {
             if (filePath == null)
-                throw new ArgumentNullException("filePath");
+                throw new ArgumentNullException(nameof(filePath));
 
             if (!File.Exists(filePath))
                 return;
@@ -567,7 +570,7 @@ namespace ExportSrc
 
                 var copySrc = Path.Combine(srcPath, src);
                 var copyDst = Path.Combine(dstpath, dst);
-                this.CopyFile(copySrc, copyDst);
+                CopyFile(copySrc, copyDst);
 
                 parent.RemoveChild(node);
                 parent.Attributes["Include"].Value = dst;
